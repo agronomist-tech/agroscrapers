@@ -9,6 +9,6 @@ ENV CLICKHOUSE_PORT=9000
 ENV CLICKHOUSE_DATABASE=db
 
 COPY . /opt/raydium
-RUN npm ci && tsc index.ts
+RUN npm ci && npx tsc
 
 CMD ["node", "index.js"]
