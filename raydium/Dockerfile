@@ -1,6 +1,6 @@
 FROM node:16-alpine
 
-COPY package-lock.json .
+COPY package.json .
 RUN npm install
 
 ENV SOLANA_URL=https://solana-api.projectserum.com
