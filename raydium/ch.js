@@ -44,7 +44,7 @@ function makeClickhouse(host, port, database) {
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    console.log("Create connection");
+                    console.log("Create clickhouse connection to ".concat(host, ":").concat(port, "/").concat(database));
                     conn = new clickhouse_1.ClickHouse({
                         url: host,
                         port: port,

@@ -43,15 +43,12 @@ var ch_1 = require("./ch");
 var mongo_1 = require("./mongo");
 var config = {
     solanaUrl: process.env.SOLANA_URL || "https://solana-api.projectserum.com",
-    mongoUrl: process.env.MONGO_URL || "mongodb://localhost:27017/",
+    mongoUrl: process.env.MONGO_URL || "mongodb://localhost:27017/agronomist",
     clickhouseHost: process.env.CLICKHOUSE_HOST || "localhost",
     clickhousePort: process.env.CLICKHOUSE_PORT ? parseInt(process.env.CLICKHOUSE_PORT) : 9000,
     clickhouseDatabase: process.env.CLICKHOUSE_DATABASE || "agronomist"
 };
 var solanaConnection = new web3_js_1.Connection(config.solanaUrl);
-var sleep = function (time) {
-    return new Promise(function (resolve) { return setTimeout(resolve, Math.ceil(time * 1000)); });
-};
 function getTokens() {
     return __awaiter(this, void 0, void 0, function () {
         var resp, tokensList, tokens;
@@ -114,96 +111,202 @@ function getFarmPools() {
         });
     });
 }
-function main() {
-    return __awaiter(this, void 0, void 0, function () {
-        var tokens, liquidityPools, farmPools, _loop_1, _i, farmPools_1, pool;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    console.log("Getting tokens...");
-                    return [4 /*yield*/, getTokens()];
-                case 1:
-                    tokens = _a.sent();
-                    console.log("Getting liquidity pools...");
-                    return [4 /*yield*/, raydium_sdk_1.Liquidity.fetchAllPoolKeys(solanaConnection)];
-                case 2:
-                    liquidityPools = _a.sent();
-                    console.log("Getting farm pools...");
-                    return [4 /*yield*/, getFarmPools()];
-                case 3:
-                    farmPools = _a.sent();
-                    console.log("Farms count: ".concat(farmPools.length));
-                    console.log("Getting farm info...");
-                    _loop_1 = function (pool) {
-                        var lpPool, farmInfo, poolInfo;
-                        return __generator(this, function (_b) {
-                            switch (_b.label) {
-                                case 0:
-                                    console.log("Start parse pool: ", pool.id.toString(), pool.lpMint.toString());
-                                    lpPool = Array.from(liquidityPools).find(function (lp) {
-                                        return lp.lpMint.toString() === pool.lpMint.toString();
-                                    });
-                                    if (!lpPool)
-                                        return [2 /*return*/, "continue"];
-                                    return [4 /*yield*/, raydium_sdk_1.Farm.fetchMultipleInfo({
-                                            connection: solanaConnection,
-                                            pools: [pool]
-                                        })];
-                                case 1:
-                                    farmInfo = _b.sent();
-                                    if (!lpPool) return [3 /*break*/, 3];
-                                    return [4 /*yield*/, raydium_sdk_1.Liquidity.fetchInfo({
-                                            connection: solanaConnection,
-                                            poolKeys: lpPool
-                                        })];
-                                case 2:
-                                    poolInfo = _b.sent();
-                                    console.log("Farm Pool ID: ".concat(pool.id, " with tokens: ").concat(tokens[lpPool.quoteMint.toString()].name, " (").concat(poolInfo.quoteReserve, ") <-> ").concat(tokens[lpPool.baseMint.toString()].name, " (").concat(poolInfo.baseReserve, "): ").concat(farmInfo[pool.id.toString()].lpVault.amount.toString(), " (").concat(poolInfo.lpSupply, ")"));
-                                    _b.label = 3;
-                                case 3: return [4 /*yield*/, sleep(10)];
-                                case 4:
-                                    _b.sent();
-                                    return [2 /*return*/];
-                            }
-                        });
-                    };
-                    _i = 0, farmPools_1 = farmPools;
-                    _a.label = 4;
-                case 4:
-                    if (!(_i < farmPools_1.length)) return [3 /*break*/, 7];
-                    pool = farmPools_1[_i];
-                    return [5 /*yield**/, _loop_1(pool)];
-                case 5:
-                    _a.sent();
-                    _a.label = 6;
-                case 6:
-                    _i++;
-                    return [3 /*break*/, 4];
-                case 7: return [2 /*return*/];
-            }
-        });
-    });
-}
 function processing() {
     var _a;
     return __awaiter(this, void 0, void 0, function () {
-        var mongo, ch, farms, _i, farms_1, farm, farmInfo;
-        return __generator(this, function (_b) {
-            switch (_b.label) {
+        var mongo, ch, tokens, _b, _c, _i, token, resp, liquidityPools, _loop_1, _d, _e, lp, _loop_2, _f, _g, lp, farms, _h, farms_1, farm, farmInfo;
+        return __generator(this, function (_j) {
+            switch (_j.label) {
                 case 0: return [4 /*yield*/, (0, mongo_1.makeMongo)(config.mongoUrl)];
                 case 1:
-                    mongo = _b.sent();
+                    mongo = _j.sent();
                     return [4 /*yield*/, (0, ch_1.makeClickhouse)(config.clickhouseHost, config.clickhousePort, config.clickhouseDatabase)];
                 case 2:
-                    ch = _b.sent();
-                    return [4 /*yield*/, getFarmPools()];
+                    ch = _j.sent();
+                    console.log("Get tokens from raydium");
+                    return [4 /*yield*/, getTokens()];
                 case 3:
-                    farms = _b.sent();
-                    _i = 0, farms_1 = farms;
-                    _b.label = 4;
+                    tokens = _j.sent();
+                    console.log("Received ".concat(tokens.length, " tokens"));
+                    _b = [];
+                    for (_c in tokens)
+                        _b.push(_c);
+                    _i = 0;
+                    _j.label = 4;
                 case 4:
-                    if (!(_i < farms_1.length)) return [3 /*break*/, 9];
-                    farm = farms_1[_i];
+                    if (!(_i < _b.length)) return [3 /*break*/, 7];
+                    token = _b[_i];
+                    return [4 /*yield*/, mongo_1.TokenModel.updateOne({
+                            name: tokens[token].name,
+                            symbol: tokens[token].symbol,
+                            mint: token,
+                            icon: tokens[token].icon,
+                            decimal: tokens[token].decimal,
+                            source: "raydium"
+                        }, {}, { upsert: true })];
+                case 5:
+                    _j.sent();
+                    _j.label = 6;
+                case 6:
+                    _i++;
+                    return [3 /*break*/, 4];
+                case 7:
+                    console.log("Get list of liquidity pools");
+                    return [4 /*yield*/, axios_1["default"].get("https://api.raydium.io/v2/sdk/liquidity/mainnet.json")];
+                case 8:
+                    resp = _j.sent();
+                    return [4 /*yield*/, resp.data];
+                case 9:
+                    liquidityPools = _j.sent();
+                    console.log("Received official ".concat(liquidityPools["official"].length, " liquidity pools"));
+                    console.log("Received unofficial ".concat(liquidityPools["unOfficial"].length, " liquidity pools"));
+                    _loop_1 = function (lp) {
+                        var poolInfo, e_1;
+                        return __generator(this, function (_k) {
+                            switch (_k.label) {
+                                case 0:
+                                    console.log("Save lpool ".concat(lp.id));
+                                    return [4 /*yield*/, mongo_1.LPoolModel.updateOne({
+                                            id: lp.id.toString(),
+                                            lpMint: lp.lpMint.toString(),
+                                            baseMint: lp.baseMint.toString(),
+                                            quoteMint: lp.quoteMint.toString(),
+                                            lpDecimal: lp.lpDecimals,
+                                            baseDecimal: lp.baseDecimals,
+                                            quoteDecimal: lp.quoteDecimals,
+                                            lpVault: lp.lpVault,
+                                            programId: lp.programId,
+                                            baseVault: lp.baseVault,
+                                            quoteVault: lp.quoteVault,
+                                            comment: "official"
+                                        }, {}, { upsert: true })];
+                                case 1:
+                                    _k.sent();
+                                    Object.keys(lp).map(function (key) { return lp[key] = new web3_js_1.PublicKey(lp[key]); });
+                                    poolInfo = void 0;
+                                    _k.label = 2;
+                                case 2:
+                                    _k.trys.push([2, 4, , 5]);
+                                    console.log("Get info for ".concat(lp.id));
+                                    return [4 /*yield*/, raydium_sdk_1.Liquidity.fetchInfo({
+                                            connection: solanaConnection,
+                                            poolKeys: lp
+                                        })];
+                                case 3:
+                                    poolInfo = _k.sent();
+                                    return [3 /*break*/, 5];
+                                case 4:
+                                    e_1 = _k.sent();
+                                    console.log("Can't get pool info: ".concat(e_1));
+                                    return [2 /*return*/, "continue"];
+                                case 5:
+                                    if (!poolInfo) return [3 /*break*/, 7];
+                                    console.log("Save info for ".concat(lp.id));
+                                    return [4 /*yield*/, ch.insert("INSERT INTO lpools (address, base, quote, liquidity, date)", {
+                                            address: lp.id.toString(),
+                                            base: poolInfo.baseReserve.toString(),
+                                            quote: poolInfo.quoteReserve.toString(),
+                                            liquidity: poolInfo.lpSupply.toString(),
+                                            date: new Date()
+                                        }).toPromise()];
+                                case 6:
+                                    _k.sent();
+                                    _k.label = 7;
+                                case 7: return [2 /*return*/];
+                            }
+                        });
+                    };
+                    _d = 0, _e = liquidityPools["official"];
+                    _j.label = 10;
+                case 10:
+                    if (!(_d < _e.length)) return [3 /*break*/, 13];
+                    lp = _e[_d];
+                    return [5 /*yield**/, _loop_1(lp)];
+                case 11:
+                    _j.sent();
+                    _j.label = 12;
+                case 12:
+                    _d++;
+                    return [3 /*break*/, 10];
+                case 13:
+                    _loop_2 = function (lp) {
+                        var poolInfo, e_2;
+                        return __generator(this, function (_l) {
+                            switch (_l.label) {
+                                case 0: return [4 /*yield*/, mongo_1.LPoolModel.updateOne({
+                                        id: lp.id.toString(),
+                                        lpMint: lp.lpMint.toString(),
+                                        baseMint: lp.baseMint.toString(),
+                                        quoteMint: lp.quoteMint.toString(),
+                                        lpDecimal: lp.lpDecimals,
+                                        baseDecimal: lp.baseDecimals,
+                                        quoteDecimal: lp.quoteDecimals,
+                                        lpVault: lp.lpVault,
+                                        programId: lp.programId,
+                                        baseVault: lp.baseVault,
+                                        quoteVault: lp.quoteVault,
+                                        comment: "unofficial"
+                                    }, {}, { upsert: true })];
+                                case 1:
+                                    _l.sent();
+                                    Object.keys(lp).map(function (key) { return lp[key] = new web3_js_1.PublicKey(lp[key]); });
+                                    poolInfo = void 0;
+                                    _l.label = 2;
+                                case 2:
+                                    _l.trys.push([2, 4, , 5]);
+                                    console.log("Get info for ".concat(lp.id));
+                                    return [4 /*yield*/, raydium_sdk_1.Liquidity.fetchInfo({
+                                            connection: solanaConnection,
+                                            poolKeys: lp
+                                        })];
+                                case 3:
+                                    poolInfo = _l.sent();
+                                    return [3 /*break*/, 5];
+                                case 4:
+                                    e_2 = _l.sent();
+                                    console.log("Can't get pool info: ".concat(e_2));
+                                    return [2 /*return*/, "continue"];
+                                case 5:
+                                    if (!poolInfo) return [3 /*break*/, 7];
+                                    console.log("Save info for ".concat(lp.id));
+                                    return [4 /*yield*/, ch.insert("INSERT INTO lpools (address, base, quote, liquidity, date)", {
+                                            address: lp.id.toString(),
+                                            base: poolInfo.baseReserve.toString(),
+                                            quote: poolInfo.quoteReserve.toString(),
+                                            liquidity: poolInfo.lpSupply.toString(),
+                                            date: new Date()
+                                        }).toPromise()];
+                                case 6:
+                                    _l.sent();
+                                    _l.label = 7;
+                                case 7: return [2 /*return*/];
+                            }
+                        });
+                    };
+                    _f = 0, _g = liquidityPools["unOfficial"];
+                    _j.label = 14;
+                case 14:
+                    if (!(_f < _g.length)) return [3 /*break*/, 17];
+                    lp = _g[_f];
+                    return [5 /*yield**/, _loop_2(lp)];
+                case 15:
+                    _j.sent();
+                    _j.label = 16;
+                case 16:
+                    _f++;
+                    return [3 /*break*/, 14];
+                case 17:
+                    console.log("Get list of farm pools");
+                    return [4 /*yield*/, getFarmPools()];
+                case 18:
+                    farms = _j.sent();
+                    console.log("Received ".concat(farms.length, " farm pools"));
+                    _h = 0, farms_1 = farms;
+                    _j.label = 19;
+                case 19:
+                    if (!(_h < farms_1.length)) return [3 /*break*/, 24];
+                    farm = farms_1[_h];
+                    console.log("Save farm ".concat(farm.id));
                     return [4 /*yield*/, mongo_1.FarmModel.updateOne({
                             id: farm.id.toString(),
                             lpMint: farm.lpMint.toString(),
@@ -212,30 +315,31 @@ function processing() {
                             rewardMints: farm.rewardMints.map(function (rewardMint) { return rewardMint.toString(); }),
                             rewardVaults: farm.rewardVaults.map(function (rewardVault) { return rewardVault.toString(); })
                         }, {}, { upsert: true })];
-                case 5:
-                    _b.sent();
+                case 20:
+                    _j.sent();
                     return [4 /*yield*/, raydium_sdk_1.Farm.fetchMultipleInfo({
                             connection: solanaConnection,
                             pools: [farm]
                         })];
-                case 6:
-                    farmInfo = _b.sent();
-                    if (!farmInfo) return [3 /*break*/, 8];
+                case 21:
+                    farmInfo = _j.sent();
+                    if (!farmInfo) return [3 /*break*/, 23];
+                    console.log("Save info for farm ".concat(farm.id));
                     return [4 /*yield*/, ch.insert("INSERT INTO farms (address, rewards, amount, date)", {
                             address: farm.id.toString(),
                             rewards: farmInfo[farm.id.toString()].state.totalRewards.map(function (reward) { return reward.toString(); }),
                             amount: farmInfo[farm.id.toString()].lpVault.amount.toString(),
                             date: new Date()
                         }).toPromise()];
-                case 7:
-                    _b.sent();
-                    _b.label = 8;
-                case 8:
-                    _i++;
-                    return [3 /*break*/, 4];
-                case 9: return [4 /*yield*/, ((_a = mongo.connection) === null || _a === void 0 ? void 0 : _a.close())];
-                case 10:
-                    _b.sent();
+                case 22:
+                    _j.sent();
+                    _j.label = 23;
+                case 23:
+                    _h++;
+                    return [3 /*break*/, 19];
+                case 24: return [4 /*yield*/, ((_a = mongo.connection) === null || _a === void 0 ? void 0 : _a.close())];
+                case 25:
+                    _j.sent();
                     return [2 /*return*/];
             }
         });
