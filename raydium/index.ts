@@ -16,7 +16,7 @@ import {makeMongo, TokenModel, LPoolModel, FarmModel} from "./mongo";
 
 const config = {
     solanaUrl: process.env.SOLANA_URL || "https://solana-api.projectserum.com",
-    mongoUrl: process.env.MONGO_URL || "mongodb://localhost:27017/",
+    mongoUrl: process.env.MONGO_URL || "mongodb://localhost:27017/agronomist",
     clickhouseHost: process.env.CLICKHOUSE_HOST || "localhost",
     clickhousePort: process.env.CLICKHOUSE_PORT ? parseInt(process.env.CLICKHOUSE_PORT) : 9000,
     clickhouseDatabase: process.env.CLICKHOUSE_DATABASE || "agronomist",
