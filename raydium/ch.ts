@@ -1,7 +1,7 @@
 import {ClickHouse} from "clickhouse";
 
 async function makeClickhouse(host: string, port: number, database: string) {
-    console.log("Create connection");
+    console.log(`Create clickhouse connection to ${host}:${port}/${database}`);
     const conn = new ClickHouse({
         url: host,
         port: port,

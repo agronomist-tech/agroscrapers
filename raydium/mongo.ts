@@ -45,6 +45,7 @@ const FarmModel = mongoose.model('Farms', farmSchema);
 
 
 async function makeMongo(url: string) {
+    console.log(`Create mongodb connection to ${url}`);
     return await mongoose.connect(url);
 }
 
