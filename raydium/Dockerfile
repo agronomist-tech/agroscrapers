@@ -1,7 +1,6 @@
 FROM node:16-alpine
 
-COPY package.json .
-RUN npm install
+WORKDIR /opt/raydium
 
 ENV SOLANA_URL=https://solana-api.projectserum.com
 ENV MONGO_URL=mongodb://mongo:27017/db
@@ -10,7 +9,6 @@ ENV CLICKHOUSE_PORT=9000
 ENV CLICKHOUSE_DATABASE=db
 
 COPY . /opt/raydium
-
-WORKDIR /opt/raydium
+RUN npm install
 
 CMD ["node", "index.js"]
