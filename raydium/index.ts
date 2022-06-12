@@ -25,11 +25,6 @@ const config = {
 const solanaConnection = new Connection(config.solanaUrl);
 
 
-const sleep = (time: number) => {
-    return new Promise((resolve) => setTimeout(resolve, Math.ceil(time * 1000)));
-};
-
-
 type Tokens = {
     [key: string]: { [key: string]: string | number }
 }
@@ -83,43 +78,13 @@ async function getFarmPools(): Promise<FarmPoolKeys[]> {
 }
 
 
-async function main() {
-    console.log("Getting tokens...");
-    const tokens = await getTokens();
-    console.log("Getting liquidity pools...");
-    const liquidityPools = await Liquidity.fetchAllPoolKeys(solanaConnection);
-    console.log("Getting farm pools...");
-    const farmPools = await getFarmPools();
-    console.log(`Farms count: ${farmPools.length}`);
-
-    console.log("Getting farm info...");
-    for (let pool of farmPools) {
-        console.log("Start parse pool: ", pool.id.toString(), pool.lpMint.toString());
-        const lpPool = Array.from(liquidityPools).find((lp) => {
-            return lp.lpMint.toString() === pool.lpMint.toString()
-        });
-        if (!lpPool) continue
-        const farmInfo = await Farm.fetchMultipleInfo({
-            connection: solanaConnection,
-            pools: [pool],
-        });
-        if (lpPool) {
-            const poolInfo = await Liquidity.fetchInfo({
-                connection: solanaConnection,
-                poolKeys: lpPool,
-            });
-            console.log(`Farm Pool ID: ${pool.id} with tokens: ${tokens[lpPool.quoteMint.toString()].name} (${poolInfo.quoteReserve}) <-> ${tokens[lpPool.baseMint.toString()].name} (${poolInfo.baseReserve}): ${farmInfo[pool.id.toString()].lpVault.amount.toString()} (${poolInfo.lpSupply})`);
-        }
-        await sleep(10);
-    }
-}
-
-
 async function processing() {
     const mongo = await makeMongo(config.mongoUrl);
     const ch = await makeClickhouse(config.clickhouseHost, config.clickhousePort, config.clickhouseDatabase);
 
+    console.log("Get tokens from raydium");
     const tokens = await getTokens();
+    console.log(`Received ${tokens.length} tokens`);
     for (let token in tokens) {
         await TokenModel.updateOne( {
             name: tokens[token].name,
@@ -131,11 +96,15 @@ async function processing() {
         }, {},{upsert: true})
     }
 
+    console.log("Get list of liquidity pools");
     const resp = await axios.get("https://api.raydium.io/v2/sdk/liquidity/mainnet.json");
 
     const liquidityPools = await resp.data;
+    console.log(`Received official ${liquidityPools["official"].length} liquidity pools`);
+    console.log(`Received unofficial ${liquidityPools["unOfficial"].length} liquidity pools`);
 
     for (let lp of liquidityPools["official"]) {
+        console.log(`Save lpool ${lp.id}`)
         await LPoolModel.updateOne( {
             id: lp.id.toString(),
             lpMint: lp.lpMint.toString(),
@@ -150,6 +119,32 @@ async function processing() {
             quoteVault: lp.quoteVault,
             comment: "official"
         }, {}, {upsert: true})
+
+        Object.keys(lp).map((key: string) => lp[key] = new PublicKey(lp[key]));
+        let poolInfo;
+        try {
+            console.log(`Get info for ${lp.id}`);
+            poolInfo = await Liquidity.fetchInfo(
+            {
+                connection: solanaConnection,
+                poolKeys: lp
+            }
+        );
+        } catch (e) {
+            console.log(`Can't get pool info: ${e}`)
+            continue
+        }
+
+        if (poolInfo) {
+            console.log(`Save info for ${lp.id}`)
+            await ch.insert(`INSERT INTO lpools (address, base, quote, liquidity, date)`, {
+                address: lp.id.toString(),
+                base: poolInfo.baseReserve.toString(),
+                quote: poolInfo.quoteReserve.toString(),
+                liquidity: poolInfo.lpSupply.toString(),
+                date: new Date()
+            }).toPromise();
+        }
     }
 
     for (let lp of liquidityPools["unOfficial"]) {
@@ -170,6 +165,7 @@ async function processing() {
         Object.keys(lp).map((key: string) => lp[key] = new PublicKey(lp[key]));
         let poolInfo;
         try {
+            console.log(`Get info for ${lp.id}`);
             poolInfo = await Liquidity.fetchInfo(
             {
                 connection: solanaConnection,
@@ -177,10 +173,12 @@ async function processing() {
             }
         );
         } catch (e) {
+            console.log(`Can't get pool info: ${e}`)
             continue
         }
 
         if (poolInfo) {
+            console.log(`Save info for ${lp.id}`)
             await ch.insert(`INSERT INTO lpools (address, base, quote, liquidity, date)`, {
                 address: lp.id.toString(),
                 base: poolInfo.baseReserve.toString(),
@@ -190,10 +188,11 @@ async function processing() {
             }).toPromise();
         }
     }
-
+    console.log(`Get list of farm pools`);
     const farms = await getFarmPools();
-
+    console.log(`Received ${farms.length} farm pools`);
     for (let farm of farms) {
+        console.log(`Save farm ${farm.id}`)
         await FarmModel.updateOne( {
             id: farm.id.toString(),
             lpMint: farm.lpMint.toString(),
@@ -209,6 +208,7 @@ async function processing() {
         });
 
         if (farmInfo) {
+            console.log(`Save info for farm ${farm.id}`)
              await ch.insert(`INSERT INTO farms (address, rewards, amount, date)`, {
                 address: farm.id.toString(),
                 rewards: farmInfo[farm.id.toString()].state.totalRewards.map((reward: PublicKey) => reward.toString()),

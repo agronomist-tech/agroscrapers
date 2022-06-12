@@ -9,6 +9,6 @@ ENV CLICKHOUSE_PORT=9000
 ENV CLICKHOUSE_DATABASE=db
 
 COPY . /opt/raydium
-RUN npm install
+RUN npm ci
 
 CMD ["node", "index.js"]
