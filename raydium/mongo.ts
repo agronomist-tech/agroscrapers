@@ -14,6 +14,16 @@ const tokenSchema = new Schema({
 const TokenModel = mongoose.model('Tokens', tokenSchema);
 
 
+const lpoolSpecSchema = new Schema({
+    id: SchemaTypes.String,
+    pair: SchemaTypes.String,
+    source: SchemaTypes.String,
+})
+
+
+const LPoolSpecModel = mongoose.model('LPoolsSpec', lpoolSpecSchema);
+
+
 const lpoolSchema = new Schema({
     id: SchemaTypes.String,
     lpMint: SchemaTypes.String,
@@ -26,6 +36,7 @@ const lpoolSchema = new Schema({
     programId: SchemaTypes.String,
     baseVault: SchemaTypes.String,
     quoteVault: SchemaTypes.String,
+    source: SchemaTypes.String,
     comment: SchemaTypes.String,
 });
 
@@ -39,6 +50,7 @@ const farmSchema = new Schema({
     lpVault: SchemaTypes.String,
     rewardMints: [SchemaTypes.String],
     rewardVaults: [SchemaTypes.String],
+    source: SchemaTypes.String,
 });
 
 const FarmModel = mongoose.model('Farms', farmSchema);
@@ -50,4 +62,4 @@ async function makeMongo(url: string) {
 }
 
 
-export {makeMongo, tokenSchema, TokenModel, LPoolModel, FarmModel};
+export {makeMongo, tokenSchema, TokenModel, LPoolModel, LPoolSpecModel, FarmModel};

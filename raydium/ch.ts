@@ -19,9 +19,9 @@ async function prepareCHTables(conn: ClickHouse) {
     await conn.query(`CREATE TABLE IF NOT EXISTS lpools
                             (
                                 address String,
-                                base String,
-                                quote String,
-                                liquidity String,
+                                base BIGINT,
+                                quote BIGINT,
+                                liquidity BIGINT,
                                 date DateTime      
                             ) 
                             ENGINE=MergeTree()
@@ -32,7 +32,7 @@ async function prepareCHTables(conn: ClickHouse) {
                             (
                                 address String,
                                 rewards Array(String),
-                                amount String,
+                                amount BIGINT,
                                 date DateTime
                             ) 
                             ENGINE=MergeTree()
